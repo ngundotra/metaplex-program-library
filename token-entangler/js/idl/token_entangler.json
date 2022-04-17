@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "name": "token_entangler",
   "instructions": [
     {
@@ -12,7 +12,7 @@
         },
         {
           "name": "payer",
-          "isMut": false,
+          "isMut": true,
           "isSigner": true
         },
         {
@@ -368,6 +368,11 @@
       "code": 6013,
       "name": "EntangledPairExists",
       "msg": "This pair already exists as it's reverse"
+    },
+    {
+      "code": 6014,
+      "name": "MustHaveSupplyOne",
+      "msg": "Must have supply one!"
     }
   ],
   "metadata": {
