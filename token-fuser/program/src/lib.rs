@@ -232,36 +232,22 @@ pub mod token_fuser {
             &[ctx.accounts.fuse_request.bump]
         ];
         invoke_signed(
-            &system_instruction::transfer(
+            &spl_token::instruction::transfer(
+                &ctx.accounts.token_program.key(),
                 &ctx.accounts.fuse_request_escrow.key(),
-                &ctx.accounts.claimer.key(),
+                &ctx.accounts.treasury_token_account.key(),
+                &ctx.accounts.fuse_request.key(),
+                &[],
                 ctx.accounts.fuse_request.bounty_amount
-            ),
+            )?,
             &[
                 ctx.accounts.fuse_request_escrow.to_account_info().clone(),
-                ctx.accounts.claimer.to_account_info().clone(),
-                ctx.accounts.system_program.to_account_info().clone(),
+                ctx.accounts.treasury_token_account.to_account_info().clone(),
+                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.fuse_request.to_account_info(),
             ],
             &[&signer_seeds]
         )?;
-        // invoke_signed(
-        //     &spl_token::instruction::transfer(
-        //         ctx.accounts.token_program.key,
-        //         &ctx.accounts.fuse_request.key(),
-        //         &ctx.accounts.claimer.key(),
-        //         &ctx.accounts.claimer.key(),
-        //         &[],
-        //         ctx.accounts.fuse_request.bounty_amount,
-        //     )?,
-        //     &[
-        //         ctx.accounts.fuse_request.to_account_info(),
-        //         ctx.accounts.claimer.to_account_info(),
-        //         ctx.accounts.claimer.to_account_info(),
-        //         ctx.accounts.token_program.to_account_info(),
-        //     ],
-        //     &[&signer_seeds]
-        // )?;
-
         ctx.accounts.fuse_request.completed = true;
 
         Ok(())
@@ -419,23 +405,29 @@ pub struct RequestFuse<'info> {
 pub struct FulfillFuseRequest<'info> {
     /// Really just to confirm that the metadata account
     /// uri matches what the NFT was generated for
-    mint: Account<'info, Mint>,
-    /// CHECK: that this is the escrow account for fuse_request
-    fuse_request_escrow: UncheckedAccount<'info>,
+    mint: Box<Account<'info, Mint>>,
     ///TODO(ngundotra): add the metadata account
     #[account(
         mut,
         seeds=[FUSE_INFO_PREFIX.as_bytes(), mint.key().as_ref(), fuse_request.filter.key().as_ref()],
         bump=fuse_request.bump
     )]
-    fuse_request: Account<'info, FuseRequest>,
+    fuse_request: Box<Account<'info, FuseRequest>>,
+    #[account(
+        mut,
+        constraint = fuse_request_escrow.owner == fuse_request.key()
+    )]
+    fuse_request_escrow: Box<Account<'info, TokenAccount>>,
+    filter_settings: Box<Account<'info, FilterSettings>>,
     /// Requires that this is actually the entity cranking the
     /// filter upload 
     #[account(mut)]
     claimer: Signer<'info>,
-    /// CHECK: Just sending them the lamports back for closing Quark
-    #[account(mut)]
-    requester: UncheckedAccount<'info>,
+    #[account(mut)] 
+    treasury_token_account: Box<Account<'info, TokenAccount>>,
+    // /// CHECK: Just sending them the lamports back for closing Quark
+    // #[account(mut)]
+    // requester: UncheckedAccount<'info>,
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>
 }

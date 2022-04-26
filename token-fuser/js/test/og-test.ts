@@ -96,6 +96,7 @@ test("fuser", async (t) => {
 
     const filterSettingSeeds = [Buffer.from("filter"), filterResult.mint.toBuffer()];
     const [filterSettingsKey, _bump] = await PublicKey.findProgramAddress(filterSettingSeeds, fuserProgram.programId)
+    const treasury = Keypair.generate();
     const treasuryMint = NATIVE_MINT;
     const crankAuthority = Keypair.generate();
     const txId = await fuserProgram.rpc.createFilterSettings(
@@ -106,7 +107,7 @@ test("fuser", async (t) => {
             accounts: {
                 payer: payer.publicKey,
                 filterMint: filterResult.mint,
-                treasury: Keypair.generate().publicKey,
+                treasury: treasury.publicKey,
                 treasuryMint: treasuryMint,
                 filterSettings: filterSettingsKey,
                 crankAuthority: crankAuthority.publicKey,
@@ -205,6 +206,22 @@ test("fuser", async (t) => {
     console.log("Sent fuse request tx with id:", requestFuseTxId);
 
     console.log("Fulfilling fuse request...");
+    const treasuryTokenAccount = await getTokenWallet(treasury.publicKey, treasuryMint);
+    const ataTreasuryIx = createAssociatedTokenAccountInstruction(
+        treasuryTokenAccount,
+        payer.publicKey,
+        treasury.publicKey,
+        treasuryMint
+    );
+    tx = new Transaction().add(ataTreasuryIx);
+    ataTxid = await sendAndConfirmTransaction(
+        connection, 
+        tx, 
+        [payer], 
+        { commitment: "confirmed", skipPreflight: true}
+    );
+    console.log("Successfully created treasury token account address:", ataTxid);
+
     await fuserProgram.rpc.fulfillFuseRequest(
         FUSE_URI,
         "filtered",
@@ -213,8 +230,10 @@ test("fuser", async (t) => {
             accounts: {
                 mint: mintResult.mint,
                 fuseRequest,
+                fuseRequestEscrow,
+                treasuryTokenAccount,
+                filterSettings: filterSettingsKey,
                 claimer: crankAuthority.publicKey,
-                requester: payer.publicKey,
                 tokenProgram: TOKEN_PROGRAM_ID,
                 systemProgram: SystemProgram.programId,
             },
