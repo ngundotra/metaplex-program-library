@@ -32,22 +32,28 @@ anchor_lang::declare_id!("fuseis4soWTGiwuDUTKXQZk3xZFRjGB8cPyuDERzd98");
 const FILTER_PREFIX: &str = "filter";
 const FILTER_SETTINGS_SIZE: usize =
 8     // discriminant
-+ 1   // pays every time
++ 1   // bump
 + 32  // filter mint
 + 32  // treasury mint
 + 32  // treasury address
 + 8   // price
-+ 1   // completed
++ 1   // pays every time
 + 32; // crank authority
 
 const FUSE_INFO_PREFIX: &str = "fuse_request"; 
 const FUSE_INFO_SIZE: usize = 
 1 + // bump
+32 + // mint key
+32 + // filter key
+32 + // requester
 1 + // is complete
 8 + // bounty amount
-32 + // crank authority pubkey
-32; // URI (???)
-
+4 + // uri length
+200 + // uri
+4 +  // name length
+200 + // name
+4 + // symbol length
+200 ; // symbol
 #[program]
 pub mod token_fuser {
 
@@ -55,6 +61,7 @@ pub mod token_fuser {
 
     pub fn create_filter_settings(
         ctx: Context<CreateFilterSettings>,
+        bump: u8,
         price: u64,
         pays_every_time: bool,
     ) -> Result<()> {
@@ -69,6 +76,7 @@ pub mod token_fuser {
 
         filter_settings.pays_every_time = pays_every_time;
         filter_settings.price = price;
+        filter_settings.bump = bump;
 
         Ok(())
     }
@@ -76,7 +84,6 @@ pub mod token_fuser {
     pub fn request_fuse(
         ctx: Context<RequestFuse>,
         bump: u8,
-        crank_authority: Pubkey,
         bounty_amount: u64,
     ) -> Result<()> {
         // TODO(ngundotra): check that the user actually has one of these NFTs
@@ -84,26 +91,32 @@ pub mod token_fuser {
         ctx.accounts.fuse_request.mint = ctx.accounts.mint.key();
         ctx.accounts.fuse_request.requester = ctx.accounts.payer.key();
         ctx.accounts.fuse_request.completed = false;
-        ctx.accounts.fuse_request.crank_authority = crank_authority;
         ctx.accounts.fuse_request.bump = bump;
 
         // Create bounty
-        invoke(
-            &spl_token::instruction::transfer(
-                ctx.accounts.token_program.key,
-                &ctx.accounts.payer.key(),
-                &ctx.accounts.fuse_request.key(),
-                &ctx.accounts.payer.key(),
-                &[],
-                bounty_amount,
-            )?,
-            &[
-                ctx.accounts.payer.to_account_info(),
-                ctx.accounts.fuse_request.to_account_info(),
-                ctx.accounts.token_program.to_account_info(),
-                ctx.accounts.payer.to_account_info(),
-            ]
-        )?;
+        // let signer_seeds = [
+        //     FUSE_INFO_PREFIX.as_bytes(),
+        //     ctx.accounts.fuse_request.mint.as_ref(),
+        //     ctx.accounts.filter_settings.filter_mint.as_ref(),
+        //     &[bump]
+        // ];
+        // invoke(
+        //     &spl_token::instruction::transfer(
+        //         ctx.accounts.token_program.key,
+        //         &ctx.accounts.payer.key(),
+        //         &ctx.accounts.fuse_request.key(),
+        //         &ctx.accounts.payer.key(),
+        //         &[],
+        //         bounty_amount,
+        //     )?,
+        //     &[
+        //         ctx.accounts.payer.to_account_info(),
+        //         ctx.accounts.fuse_request.to_account_info(),
+        //         ctx.accounts.token_program.to_account_info(),
+        //         ctx.accounts.payer.to_account_info(),
+        //     ],
+        //     // &[&signer_seeds],
+        // )?;
         ctx.accounts.fuse_request.bounty_amount = bounty_amount;
         msg!("Setup a bounty for the NFT");
 
@@ -260,7 +273,6 @@ pub mod token_fuser {
 }
 
 #[derive(Accounts)]
-#[instruction(crank_authority: Pubkey)]
 pub struct RequestFuse<'info> {
     #[account(mut)]
     payer: Signer<'info>,
@@ -268,7 +280,12 @@ pub struct RequestFuse<'info> {
     /// for initiating the filter
     mint: Account<'info, Mint>,
     // Also an NFT... ideally you'd own one of both
-    filter: Account<'info, Mint>,
+    filter_mint: Account<'info, Mint>,
+    #[account(
+        seeds=[&FILTER_PREFIX.as_bytes(), filter_mint.key().as_ref()],
+        bump=filter_settings.bump
+    )]
+    filter_settings: Account<'info, FilterSettings>,
     /// You have to have one of these to request
     /// Set desired crank authority
     #[account(
@@ -276,8 +293,7 @@ pub struct RequestFuse<'info> {
         seeds=[
             FUSE_INFO_PREFIX.as_bytes(), 
             mint.key().as_ref(), 
-            filter.key().as_ref(),
-            crank_authority.as_ref(),
+            filter_mint.key().as_ref(),
         ],
         space=FUSE_INFO_SIZE,
         bump,
@@ -288,7 +304,6 @@ pub struct RequestFuse<'info> {
     token_program: Program<'info, Token>,
 }
 
-
 #[derive(Accounts)]
 pub struct FulfillFuseRequest<'info> {
     /// Really just to confirm that the metadata account
@@ -297,7 +312,7 @@ pub struct FulfillFuseRequest<'info> {
     ///TODO(ngundotra): add the metadata account
     #[account(
         mut,
-        seeds=[FUSE_INFO_PREFIX.as_bytes(), mint.key().as_ref(), fuse_request.filter.key().as_ref(), claimer.key.as_ref()],
+        seeds=[FUSE_INFO_PREFIX.as_bytes(), mint.key().as_ref(), fuse_request.filter.key().as_ref()],
         bump=fuse_request.bump
     )]
     fuse_request: Account<'info, FuseRequest>,
@@ -319,7 +334,6 @@ pub struct MintNFT<'info> {
             FUSE_INFO_PREFIX.as_bytes(),
             mint.key().as_ref(),
             filter_mint.key().as_ref(),
-            fuse_request.crank_authority.as_ref(),
         ],
         bump=fuse_request.bump
     )]
@@ -368,7 +382,6 @@ pub struct EntangleComponents<'info> {
             &FUSE_INFO_PREFIX.as_bytes(),
             mint_original.key().as_ref(),
             filter_mint.key().as_ref(),
-            fuse_request.crank_authority.as_ref(),
         ],
         bump=fuse_request.bump
     )]
@@ -440,8 +453,6 @@ pub struct FuseRequest {
     pub requester: Pubkey,
     /// Has URI been set yet
     pub completed: bool,
-    /// Who is authorized to set the completed result
-    pub crank_authority: Pubkey,
     /// How much do they get paid for doing so
     pub bounty_amount: u64,
     /// Info for the fused NFT
