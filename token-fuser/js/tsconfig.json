@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.build.json",
+  "compilerOptions": {
+    "noUnusedParameters": false,
+    "noUnusedLocals": false,
+    "rootDir": ".",
+    "target": "es2019",
+    "module": "commonjs",
+    "declaration": false,
+    "esModuleInterop": true,
+    "noImplicitAny": false,
+    "removeComments": false,
+    "isolatedModules": false,
+    "experimentalDecorators": true,
+    "downlevelIteration": true,
+    "emitDecoratorMetadata": true,
+    "noLib": false,
+    "preserveConstEnums": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "resolveJsonModule": true,
+    "lib": ["dom", "es2019"],
+    "types": ["node"]
+  },
+  "include": ["./src", "test"],
+  "exclude": ["node_modules", "typings/browser", "typings/browser.d.ts"],
+}

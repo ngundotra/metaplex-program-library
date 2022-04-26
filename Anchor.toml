@@ -31,7 +31,8 @@ program = "target/deploy/mpl_gumdrop.so"
 [workspace]
 members = [
   "token-entangler/program",
-  "token-metadata/program",
-  "auction-house/program",
-  "fixed-price-sale/program",
+  # "token-metadata/program",
+  "token-fuser/program",
+  # "auction-house/program",
+  # "fixed-price-sale/program",
 ]
