@@ -43,6 +43,10 @@ export type TokenFuser = {
       ],
       "args": [
         {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
           "name": "price",
           "type": "u64"
         },
@@ -61,18 +65,38 @@ export type TokenFuser = {
           "isSigner": true
         },
         {
+          "name": "payerTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "mint",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "filter",
+          "name": "filterMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "filterSettings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "treasuryMint",
           "isMut": false,
           "isSigner": false
         },
         {
           "name": "fuseRequest",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fuseRequestEscrow",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -84,16 +108,22 @@ export type TokenFuser = {
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "bump",
           "type": "u8"
-        },
-        {
-          "name": "crankAuthority",
-          "type": "publicKey"
         },
         {
           "name": "bountyAmount",
@@ -106,6 +136,11 @@ export type TokenFuser = {
       "accounts": [
         {
           "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fuseRequestEscrow",
           "isMut": false,
           "isSigner": false
         },
@@ -126,6 +161,11 @@ export type TokenFuser = {
         },
         {
           "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
           "isMut": false,
           "isSigner": false
         }
@@ -370,10 +410,6 @@ export type TokenFuser = {
             "type": "bool"
           },
           {
-            "name": "crankAuthority",
-            "type": "publicKey"
-          },
-          {
             "name": "bountyAmount",
             "type": "u64"
           },
@@ -434,6 +470,11 @@ export type TokenFuser = {
       "code": 6000,
       "name": "MintSupplyNonZero",
       "msg": "Mint account invalid for fusion since tokens have already been minted"
+    },
+    {
+      "code": 6001,
+      "name": "FilterAuthorityIsNotMintAuthority",
+      "msg": "Filter authority is not mint authority"
     }
   ]
 };
@@ -483,6 +524,10 @@ export const IDL: TokenFuser = {
       ],
       "args": [
         {
+          "name": "bump",
+          "type": "u8"
+        },
+        {
           "name": "price",
           "type": "u64"
         },
@@ -501,18 +546,38 @@ export const IDL: TokenFuser = {
           "isSigner": true
         },
         {
+          "name": "payerTokenAccount",
+          "isMut": true,
+          "isSigner": false
+        },
+        {
           "name": "mint",
           "isMut": false,
           "isSigner": false
         },
         {
-          "name": "filter",
+          "name": "filterMint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "filterSettings",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "treasuryMint",
           "isMut": false,
           "isSigner": false
         },
         {
           "name": "fuseRequest",
           "isMut": true,
+          "isSigner": false
+        },
+        {
+          "name": "fuseRequestEscrow",
+          "isMut": false,
           "isSigner": false
         },
         {
@@ -524,16 +589,22 @@ export const IDL: TokenFuser = {
           "name": "tokenProgram",
           "isMut": false,
           "isSigner": false
+        },
+        {
+          "name": "ataProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "rent",
+          "isMut": false,
+          "isSigner": false
         }
       ],
       "args": [
         {
           "name": "bump",
           "type": "u8"
-        },
-        {
-          "name": "crankAuthority",
-          "type": "publicKey"
         },
         {
           "name": "bountyAmount",
@@ -546,6 +617,11 @@ export const IDL: TokenFuser = {
       "accounts": [
         {
           "name": "mint",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "fuseRequestEscrow",
           "isMut": false,
           "isSigner": false
         },
@@ -566,6 +642,11 @@ export const IDL: TokenFuser = {
         },
         {
           "name": "tokenProgram",
+          "isMut": false,
+          "isSigner": false
+        },
+        {
+          "name": "systemProgram",
           "isMut": false,
           "isSigner": false
         }
@@ -810,10 +891,6 @@ export const IDL: TokenFuser = {
             "type": "bool"
           },
           {
-            "name": "crankAuthority",
-            "type": "publicKey"
-          },
-          {
             "name": "bountyAmount",
             "type": "u64"
           },
@@ -874,6 +951,11 @@ export const IDL: TokenFuser = {
       "code": 6000,
       "name": "MintSupplyNonZero",
       "msg": "Mint account invalid for fusion since tokens have already been minted"
+    },
+    {
+      "code": 6001,
+      "name": "FilterAuthorityIsNotMintAuthority",
+      "msg": "Filter authority is not mint authority"
     }
   ]
 };

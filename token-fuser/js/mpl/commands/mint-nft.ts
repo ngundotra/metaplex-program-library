@@ -9,7 +9,11 @@ import fetch from 'cross-fetch';
 import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
   MintLayout,
-  Token,
+  createInitializeMintInstruction,
+  createAssociatedTokenAccountInstruction,
+  createMintToInstruction,
+  createTransferInstruction,
+  createCloseAccountInstruction,
   TOKEN_PROGRAM_ID,
 } from '@solana/spl-token';
 import {
@@ -199,8 +203,7 @@ export const mintNFT = async (
     }),
   );
   instructions.push(
-    Token.createInitMintInstruction(
-      TOKEN_PROGRAM_ID,
+    createInitializeMintInstruction(
       mint.publicKey,
       0,
       wallet.publicKey,
@@ -213,13 +216,11 @@ export const mintNFT = async (
     mint.publicKey,
   );
   instructions.push(
-    Token.createAssociatedTokenAccountInstruction(
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
-      mint.publicKey,
+    createAssociatedTokenAccountInstruction(
+      wallet.publicKey,
       userTokenAccoutAddress,
       wallet.publicKey,
-      wallet.publicKey,
+      mint.publicKey,
     ),
   );
 
@@ -240,13 +241,12 @@ export const mintNFT = async (
   );
 
   instructions.push(
-    Token.createMintToInstruction(
-      TOKEN_PROGRAM_ID,
+    createMintToInstruction(
       mint.publicKey,
       userTokenAccoutAddress,
       wallet.publicKey,
-      [],
       1,
+      [],
     ),
   );
 
@@ -289,24 +289,20 @@ export const mintNFT = async (
       receivingWallet,
       mint.publicKey,
     );
-    const createdAccountIx = Token.createAssociatedTokenAccountInstruction(
-      ASSOCIATED_TOKEN_PROGRAM_ID,
-      TOKEN_PROGRAM_ID,
-      mint.publicKey,
+    const createdAccountIx = createAssociatedTokenAccountInstruction(
+      wallet.publicKey,
       derivedAccount,
       receivingWallet,
-      wallet.publicKey,
+      mint.publicKey,
     );
-    const transferIx = Token.createTransferInstruction(
-      TOKEN_PROGRAM_ID,
+    const transferIx = createTransferInstruction(
       userTokenAccoutAddress,
       derivedAccount,
       wallet.publicKey,
-      signers,
       1,
+      signers,
     );
-    const closeAccountIx = Token.createCloseAccountInstruction(
-      TOKEN_PROGRAM_ID,
+    const closeAccountIx = createCloseAccountInstruction(
       userTokenAccoutAddress,
       wallet.publicKey,
       wallet.publicKey,

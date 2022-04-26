@@ -28,7 +28,7 @@ import fs from 'fs';
 import { createCandyMachineV2Account } from './instructions';
 import { web3 } from '@project-serum/anchor';
 import log from 'loglevel';
-import { AccountLayout, u64 } from '@solana/spl-token';
+import { AccountLayout, RawAccount } from '@solana/spl-token';
 import { getCluster } from './various';
 export type AccountAndPubkey = {
   pubkey: string;
@@ -37,13 +37,15 @@ export type AccountAndPubkey = {
 
 // TODO: expose in spl package
 export const deserializeAccount = (data: Buffer) => {
-  const accountInfo = AccountLayout.decode(data);
+  const accountInfo: RawAccount = AccountLayout.decode(data);
+  return accountInfo;
+  /*
   accountInfo.mint = new PublicKey(accountInfo.mint);
   accountInfo.owner = new PublicKey(accountInfo.owner);
   accountInfo.amount = u64.fromBuffer(accountInfo.amount);
 
   if (accountInfo.delegateOption === 0) {
-    accountInfo.delegate = null;
+    accountInfo.delegate = undefined;
     accountInfo.delegatedAmount = new u64(0);
   } else {
     accountInfo.delegate = new PublicKey(accountInfo.delegate);
@@ -68,6 +70,7 @@ export const deserializeAccount = (data: Buffer) => {
   }
 
   return accountInfo;
+  */
 };
 
 export interface WhitelistMintMode {

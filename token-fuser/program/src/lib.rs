@@ -3,25 +3,34 @@ pub mod error;
 use {
     anchor_lang::{
         prelude::*,
-        solana_program::program::{invoke, invoke_signed},
+        solana_program::{
+            program::{invoke, invoke_signed},
+            program_option::COption,
+            system_instruction
+        },
         //solana_program::entrypoint::ProgramResult,
         AnchorDeserialize, AnchorSerialize,
     },
     spl_token::instruction::AuthorityType,
     anchor_spl::{
         associated_token::AssociatedToken,
-        token::{Token, TokenAccount, Mint},
+        token::{
+            // self, Transfer, 
+            Token, TokenAccount, Mint
+        },
     },
     mpl_token_metadata::{
         instruction::{
-            approve_collection_authority, create_master_edition_v3, create_metadata_accounts_v2,
-            revoke_collection_authority
+            // approve_collection_authority, 
+            create_master_edition_v3, create_metadata_accounts_v2,
+            // revoke_collection_authority
         },
         state::{
-            Metadata, MAX_CREATOR_LEN, MAX_CREATOR_LIMIT, MAX_NAME_LENGTH, MAX_SYMBOL_LENGTH,
-            MAX_URI_LENGTH,
+            Metadata, 
+            // MAX_CREATOR_LEN, MAX_CREATOR_LIMIT, MAX_NAME_LENGTH, MAX_SYMBOL_LENGTH,
+            // MAX_URI_LENGTH,
         },
-        utils::{assert_derivation, create_or_allocate_account_raw},
+        // utils::{assert_derivation, create_or_allocate_account_raw},
     },
     crate::error::FuseError
 };
@@ -40,6 +49,8 @@ const FILTER_SETTINGS_SIZE: usize =
 + 1   // pays every time
 + 32; // crank authority
 
+use anchor_spl::token::SetAuthority;
+
 const FUSE_INFO_PREFIX: &str = "fuse_request"; 
 const FUSE_INFO_SIZE: usize = 
 1 + // bump
@@ -54,6 +65,49 @@ const FUSE_INFO_SIZE: usize =
 200 + // name
 4 + // symbol length
 200 ; // symbol
+
+
+pub fn make_ata<'a>(
+    ata: AccountInfo<'a>,
+    wallet: AccountInfo<'a>,
+    mint: AccountInfo<'a>,
+    fee_payer: AccountInfo<'a>,
+    ata_program: AccountInfo<'a>,
+    token_program: AccountInfo<'a>,
+    system_program: AccountInfo<'a>,
+    rent: AccountInfo<'a>,
+    fee_payer_seeds: &[&[u8]],
+) -> Result<()> {
+    let seeds: &[&[&[u8]]];
+    let as_arr = [fee_payer_seeds];
+
+    if fee_payer_seeds.len() > 0 {
+        seeds = &as_arr;
+    } else {
+        seeds = &[];
+    }
+
+    invoke_signed(
+        &spl_associated_token_account::create_associated_token_account(
+            &fee_payer.key,
+            &wallet.key,
+            &mint.key,
+        ),
+        &[
+            ata,
+            wallet,
+            mint,
+            fee_payer,
+            ata_program,
+            system_program,
+            rent,
+            token_program,
+        ],
+        seeds,
+    )?;
+
+    Ok(())
+}
 #[program]
 pub mod token_fuser {
 
@@ -91,33 +145,69 @@ pub mod token_fuser {
         ctx.accounts.fuse_request.mint = ctx.accounts.mint.key();
         ctx.accounts.fuse_request.requester = ctx.accounts.payer.key();
         ctx.accounts.fuse_request.completed = false;
+        ctx.accounts.fuse_request.filter = ctx.accounts.filter_mint.key();
         ctx.accounts.fuse_request.bump = bump;
+        ctx.accounts.fuse_request.bounty_amount = bounty_amount;
 
         // Create bounty
-        // let signer_seeds = [
-        //     FUSE_INFO_PREFIX.as_bytes(),
-        //     ctx.accounts.fuse_request.mint.as_ref(),
-        //     ctx.accounts.filter_settings.filter_mint.as_ref(),
-        //     &[bump]
-        // ];
-        // invoke(
-        //     &spl_token::instruction::transfer(
-        //         ctx.accounts.token_program.key,
-        //         &ctx.accounts.payer.key(),
-        //         &ctx.accounts.fuse_request.key(),
-        //         &ctx.accounts.payer.key(),
-        //         &[],
-        //         bounty_amount,
-        //     )?,
-        //     &[
-        //         ctx.accounts.payer.to_account_info(),
-        //         ctx.accounts.fuse_request.to_account_info(),
-        //         ctx.accounts.token_program.to_account_info(),
-        //         ctx.accounts.payer.to_account_info(),
-        //     ],
-        //     // &[&signer_seeds],
+        // token::set_authority(
+        //     ctx.accounts.into(),
+        //     AuthorityType::AccountOwner,
+        //     Some(ctx.accounts.fuse_request.key())
         // )?;
-        ctx.accounts.fuse_request.bounty_amount = bounty_amount;
+        let signer_seeds = [
+            FUSE_INFO_PREFIX.as_bytes(),
+            ctx.accounts.fuse_request.mint.as_ref(),
+            ctx.accounts.filter_settings.filter_mint.as_ref(),
+            &[bump]
+        ]; 
+
+        // msg!("Making ATA, fuse request escrow: ");
+        // make_ata(
+        //     ctx.accounts.fuse_request_escrow.to_account_info(),
+        //     ctx.accounts.fuse_request.to_account_info(),
+        //     ctx.accounts.treasury_mint.to_account_info(),
+        //     ctx.accounts.payer.to_account_info(),
+        //     ctx.accounts.ata_program.to_account_info(),
+        //     ctx.accounts.token_program.to_account_info(),
+        //     ctx.accounts.system_program.to_account_info(),
+        //     ctx.accounts.rent.to_account_info(),
+        //     &signer_seeds,
+        // )?;
+
+        msg!("Transferring tokens...");
+        msg!("Source: {:?}", ctx.accounts.payer_token_account.key().to_string());
+        msg!("... owner {:?}", ctx.accounts.payer_token_account.owner.to_string());
+        let mut delegate_str = match ctx.accounts.payer_token_account.delegate {
+            COption::Some(delegate) => delegate.to_string(),
+            COption::None => "~none~".to_string()
+        };
+        msg!("... delegate {:?}", delegate_str);
+
+        msg!("Destination: {:?}", ctx.accounts.fuse_request_escrow.key().to_string());
+        msg!("... owner {:?}", ctx.accounts.fuse_request_escrow.owner.to_string());
+        delegate_str = match ctx.accounts.fuse_request_escrow.delegate {
+            COption::Some(delegate) => delegate.to_string(),
+            COption::None => "~none~".to_string()
+        };
+        msg!("... delegate {:?}", delegate_str);
+        invoke_signed(
+            &spl_token::instruction::transfer(
+                ctx.accounts.token_program.key,
+                &ctx.accounts.payer_token_account.key(),
+                &ctx.accounts.fuse_request_escrow.key(),
+                &ctx.accounts.fuse_request.key(),
+                &[],
+                bounty_amount,
+            )?,
+            &[
+                ctx.accounts.payer_token_account.to_account_info(),
+                ctx.accounts.fuse_request_escrow.to_account_info(),
+                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.fuse_request.to_account_info(),
+            ],
+            &[&signer_seeds]
+        )?;
         msg!("Setup a bounty for the NFT");
 
         Ok(())
@@ -138,26 +228,39 @@ pub mod token_fuser {
         let signer_seeds = [
             FUSE_INFO_PREFIX.as_bytes(),
             &ctx.accounts.mint.to_account_info().key.as_ref(),
-            &ctx.accounts.requester.key.as_ref(),
+            &ctx.accounts.fuse_request.filter.as_ref(),
             &[ctx.accounts.fuse_request.bump]
         ];
         invoke_signed(
-            &spl_token::instruction::transfer(
-                ctx.accounts.token_program.key,
-                &ctx.accounts.fuse_request.key(),
+            &system_instruction::transfer(
+                &ctx.accounts.fuse_request_escrow.key(),
                 &ctx.accounts.claimer.key(),
-                &ctx.accounts.claimer.key(),
-                &[],
-                ctx.accounts.fuse_request.bounty_amount,
-            )?,
+                ctx.accounts.fuse_request.bounty_amount
+            ),
             &[
-                ctx.accounts.fuse_request.to_account_info(),
-                ctx.accounts.claimer.to_account_info(),
-                ctx.accounts.claimer.to_account_info(),
-                ctx.accounts.token_program.to_account_info(),
+                ctx.accounts.fuse_request_escrow.to_account_info().clone(),
+                ctx.accounts.claimer.to_account_info().clone(),
+                ctx.accounts.system_program.to_account_info().clone(),
             ],
             &[&signer_seeds]
         )?;
+        // invoke_signed(
+        //     &spl_token::instruction::transfer(
+        //         ctx.accounts.token_program.key,
+        //         &ctx.accounts.fuse_request.key(),
+        //         &ctx.accounts.claimer.key(),
+        //         &ctx.accounts.claimer.key(),
+        //         &[],
+        //         ctx.accounts.fuse_request.bounty_amount,
+        //     )?,
+        //     &[
+        //         ctx.accounts.fuse_request.to_account_info(),
+        //         ctx.accounts.claimer.to_account_info(),
+        //         ctx.accounts.claimer.to_account_info(),
+        //         ctx.accounts.token_program.to_account_info(),
+        //     ],
+        //     &[&signer_seeds]
+        // )?;
 
         ctx.accounts.fuse_request.completed = true;
 
@@ -276,16 +379,20 @@ pub mod token_fuser {
 pub struct RequestFuse<'info> {
     #[account(mut)]
     payer: Signer<'info>,
+    #[account(mut, constraint = payer_token_account.mint == filter_settings.treasury_mint)]
+    payer_token_account: Box<Account<'info, TokenAccount>>,
     /// This is the mint account we wish to use
     /// for initiating the filter
-    mint: Account<'info, Mint>,
+    mint: Box<Account<'info, Mint>>,
     // Also an NFT... ideally you'd own one of both
-    filter_mint: Account<'info, Mint>,
+    filter_mint: Box<Account<'info, Mint>>,
     #[account(
         seeds=[&FILTER_PREFIX.as_bytes(), filter_mint.key().as_ref()],
         bump=filter_settings.bump
     )]
-    filter_settings: Account<'info, FilterSettings>,
+    filter_settings: Box<Account<'info, FilterSettings>>,
+    #[account(address = filter_settings.treasury_mint)]
+    treasury_mint: Box<Account<'info, Mint>>,
     /// You have to have one of these to request
     /// Set desired crank authority
     #[account(
@@ -299,9 +406,13 @@ pub struct RequestFuse<'info> {
         bump,
         payer=payer,
     )]
-    fuse_request: Account<'info, FuseRequest>,
+    fuse_request: Box<Account<'info, FuseRequest>>,
+    #[account(mut)]
+    fuse_request_escrow: Account<'info, TokenAccount>,
     system_program: Program<'info, System>,
     token_program: Program<'info, Token>,
+    ata_program: Program<'info, AssociatedToken>,
+    rent: Sysvar<'info, Rent>
 }
 
 #[derive(Accounts)]
@@ -309,6 +420,8 @@ pub struct FulfillFuseRequest<'info> {
     /// Really just to confirm that the metadata account
     /// uri matches what the NFT was generated for
     mint: Account<'info, Mint>,
+    /// CHECK: that this is the escrow account for fuse_request
+    fuse_request_escrow: UncheckedAccount<'info>,
     ///TODO(ngundotra): add the metadata account
     #[account(
         mut,
@@ -323,7 +436,8 @@ pub struct FulfillFuseRequest<'info> {
     /// CHECK: Just sending them the lamports back for closing Quark
     #[account(mut)]
     requester: UncheckedAccount<'info>,
-    token_program: Program<'info, Token>
+    token_program: Program<'info, Token>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -471,3 +585,14 @@ pub struct FilterSettings {
     pub pays_every_time: bool,
     pub crank_authority: Pubkey,
 }
+
+// impl<'info> RequestFuse<'info> {
+    // fn into_set_authority_context(&self) -> CpiContext<'_, '_, '_, 'info, SetAuthority<'info>> {
+    //     let cpi_accounts = SetAuthority {
+    //         account_or_mint: self.token_account.to_account_info().clone(),
+    //         current_authority: self.payer.to_account_info().clone(),
+    //     };
+    //     let cpi_program = self.token_program.to_account_info();
+    //     CpiContext::new(cpi_program, cpi_accounts)
+    // }
+// }
