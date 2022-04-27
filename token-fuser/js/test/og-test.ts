@@ -1,6 +1,7 @@
 import { Provider, Program } from "@project-serum/anchor";
 import {
     SYSVAR_RENT_PUBKEY,
+    SYSVAR_CLOCK_PUBKEY,
     SystemProgram,
     Connection,
     PublicKey,
@@ -13,15 +14,18 @@ import { TokenFuser } from '../types/token_fuser';
 import NodeWallet from '@project-serum/anchor/dist/cjs/nodewallet';
 import {
     NATIVE_MINT, ASSOCIATED_TOKEN_PROGRAM_ID,
-    createSyncNativeInstruction, createApproveInstruction, createRevokeInstruction
+    createSyncNativeInstruction, createApproveInstruction, createRevokeInstruction,
+    MintLayout,
+    createInitializeMintInstruction,
+    createMintToInstruction
 } from '@solana/spl-token';
 import { BN } from "bn.js";
 import { mintNFT } from '../mpl/commands/mint-nft';
 import test from 'tape';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT } from "../mpl/helpers/constants";
+import { TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT, TOKEN_METADATA_PROGRAM_ID, A } from "../mpl/helpers/constants";
 import { createAssociatedTokenAccountInstruction, } from "../mpl/helpers/instructions";
-import { getTokenWallet } from "../mpl/helpers/accounts";
+import { getMasterEdition, getMetadata, getTokenWallet } from "../mpl/helpers/accounts";
 
 const NFT_URL = "https://arweave.net/lzY_4nfg9cWziM2vDd_SXTzdHDAMguNnNO1hHDRQwZM";
 const FILTER_URL = "https://arweave.net/v3qUWmuUQN8S6aMAeTeoKw14rp6YNoqg6lDDGB7Gfv8";
@@ -215,10 +219,10 @@ test("fuser", async (t) => {
     );
     tx = new Transaction().add(ataTreasuryIx);
     ataTxid = await sendAndConfirmTransaction(
-        connection, 
-        tx, 
-        [payer], 
-        { commitment: "confirmed", skipPreflight: true}
+        connection,
+        tx,
+        [payer],
+        { commitment: "confirmed", skipPreflight: true }
     );
     console.log("Successfully created treasury token account address:", ataTxid);
 
@@ -240,5 +244,73 @@ test("fuser", async (t) => {
             signers: [crankAuthority]
         }
     );
-    console.log("Fulfilled!!!");
+
+    console.log("Fulfilled request!...\n");
+
+    const mintRent = await connection.getMinimumBalanceForRentExemption(
+        MintLayout.span,
+    );
+
+    const resultMintKeypair = Keypair.generate();
+    const resultMint = resultMintKeypair.publicKey;
+    const resultMetadataAccount = await getMetadata(resultMint);
+    const resultMasterEdition = await getMasterEdition(resultMint);
+    const resultAta = await getTokenWallet(payer.publicKey, resultMint);
+
+    const resultTxid = await sendAndConfirmTransaction(
+        connection,
+        new Transaction()
+            .add(SystemProgram.createAccount({
+                fromPubkey: payer.publicKey,
+                newAccountPubkey: resultMint,
+                lamports: mintRent,
+                space: MintLayout.span,
+                programId: TOKEN_PROGRAM_ID,
+            }))
+            .add(createInitializeMintInstruction(
+                resultMint,
+                0,
+                payer.publicKey,
+                null
+            ))
+            .add(createAssociatedTokenAccountInstruction(
+                resultAta,
+                payer.publicKey,
+                payer.publicKey,
+                resultMint
+            ))
+            .add(createMintToInstruction(
+                resultMint,
+                resultAta,
+                payer.publicKey,
+                1,
+            ))
+            .add(fuserProgram.instruction.createFusedMetadata(
+                {
+                    accounts: {
+                        filterMint: filterResult.mint,
+                        fuseRequest,
+                        filterSettings: filterSettingsKey,
+                        fuseCreator: crankAuthority.publicKey,
+                        payer: payer.publicKey,
+                        baseMetadata: mintResult.metadataAccount,
+
+                        metadata: resultMetadataAccount,
+                        mint: resultMint,
+                        mintAuthority: payer.publicKey,
+                        updateAuthority: payer.publicKey,
+                        masterEdition: resultMasterEdition,
+                        tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+                        tokenProgram: TOKEN_PROGRAM_ID,
+                        systemProgram: SystemProgram.programId,
+                        rent: SYSVAR_RENT_PUBKEY,
+                        clock: SYSVAR_CLOCK_PUBKEY,
+                    },
+                    signers: [payer]
+                }
+            )),
+        [payer, resultMintKeypair],
+        { commitment: "confirmed", skipPreflight: true }
+    );
+    console.log(`Minted new filtered NFT!!! ${resultTxid} \n`);
 });

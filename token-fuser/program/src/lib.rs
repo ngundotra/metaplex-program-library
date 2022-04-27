@@ -27,6 +27,7 @@ use {
         },
         state::{
             Metadata, 
+            Creator
             // MAX_CREATOR_LEN, MAX_CREATOR_LIMIT, MAX_NAME_LENGTH, MAX_SYMBOL_LENGTH,
             // MAX_URI_LENGTH,
         },
@@ -150,30 +151,12 @@ pub mod token_fuser {
         ctx.accounts.fuse_request.bounty_amount = bounty_amount;
 
         // Create bounty
-        // token::set_authority(
-        //     ctx.accounts.into(),
-        //     AuthorityType::AccountOwner,
-        //     Some(ctx.accounts.fuse_request.key())
-        // )?;
         let signer_seeds = [
             FUSE_INFO_PREFIX.as_bytes(),
             ctx.accounts.fuse_request.mint.as_ref(),
             ctx.accounts.filter_settings.filter_mint.as_ref(),
             &[bump]
         ]; 
-
-        // msg!("Making ATA, fuse request escrow: ");
-        // make_ata(
-        //     ctx.accounts.fuse_request_escrow.to_account_info(),
-        //     ctx.accounts.fuse_request.to_account_info(),
-        //     ctx.accounts.treasury_mint.to_account_info(),
-        //     ctx.accounts.payer.to_account_info(),
-        //     ctx.accounts.ata_program.to_account_info(),
-        //     ctx.accounts.token_program.to_account_info(),
-        //     ctx.accounts.system_program.to_account_info(),
-        //     ctx.accounts.rent.to_account_info(),
-        //     &signer_seeds,
-        // )?;
 
         msg!("Transferring tokens...");
         msg!("Source: {:?}", ctx.accounts.payer_token_account.key().to_string());
@@ -257,20 +240,21 @@ pub mod token_fuser {
         ctx: Context<MintNFT>
     ) -> Result<()> {
         // Give the fuse_request pda account control over how many have been minted
-        require!(ctx.accounts.mint.supply == 0, FuseError::MintSupplyNonZero);
+        require!(ctx.accounts.mint.supply == 1, FuseError::MintSupplyIncorrect);
+        msg!("Setting fuse request as authority");
         invoke(
             &spl_token::instruction::set_authority(
                 &ctx.accounts.token_program.key,
                 &ctx.accounts.mint.key(),
+                // None,
                 Some(&ctx.accounts.fuse_request.key()),
                 AuthorityType::MintTokens, 
                 &ctx.accounts.payer.key,
-                &[&ctx.accounts.payer.key]
+                &[],
             )?,
             &[
                 ctx.accounts.mint.to_account_info(),
                 ctx.accounts.payer.to_account_info(),
-                ctx.accounts.token_program.to_account_info(),
             ],
         )?;
         
@@ -284,13 +268,14 @@ pub mod token_fuser {
         let fuse_authority_seeds = [
             FUSE_INFO_PREFIX.as_bytes(),
             ctx.accounts.fuse_request.mint.as_ref(),
-            ctx.accounts.fuse_request.requester.as_ref(),
+            ctx.accounts.filter_settings.filter_mint.as_ref(),
+            &[ctx.accounts.fuse_request.bump]
         ];
         
         let metadata_infos = vec![
             ctx.accounts.metadata.to_account_info(),
             ctx.accounts.mint.to_account_info(),
-            ctx.accounts.mint_authority.to_account_info(),
+            fuse_authority.to_account_info(),
             ctx.accounts.payer.to_account_info(),
             ctx.accounts.token_metadata_program.to_account_info(),
             ctx.accounts.token_program.to_account_info(),
@@ -302,7 +287,7 @@ pub mod token_fuser {
         let master_edition_infos = vec![
             ctx.accounts.master_edition.to_account_info(),
             ctx.accounts.mint.to_account_info(),
-            ctx.accounts.mint_authority.to_account_info(),
+            fuse_authority.to_account_info(),
             ctx.accounts.payer.to_account_info(),
             ctx.accounts.metadata.to_account_info(),
             ctx.accounts.token_metadata_program.to_account_info(),
@@ -311,6 +296,14 @@ pub mod token_fuser {
             ctx.accounts.rent.to_account_info(),
             fuse_creator.to_account_info(),
         ];
+
+        let creator = Creator {
+            address: ctx.accounts.fuse_request.key(),
+            verified: true,
+            share: 100
+        };
+        let creators = vec![creator];
+        msg!("Creating metadata!");
         invoke_signed(
             &create_metadata_accounts_v2(
                 ctx.accounts.token_metadata_program.key(),
@@ -322,7 +315,8 @@ pub mod token_fuser {
                 ctx.accounts.fuse_request.name.clone(),
                 ctx.accounts.fuse_request.symbol.clone(),
                 ctx.accounts.fuse_request.uri.clone(),
-                base_metadata.data.creators,
+                // base_metadata.data.creators,
+                Some(creators),
                 base_metadata.data.seller_fee_basis_points,
                 true,
                 is_mutable,
@@ -333,6 +327,7 @@ pub mod token_fuser {
             &[&fuse_authority_seeds],
         )?;
 
+        msg!("Creating master edition!");
         invoke_signed(
             &create_master_edition_v3(
                 ctx.accounts.token_metadata_program.key(),
@@ -347,7 +342,7 @@ pub mod token_fuser {
                 Some(1),
             ),
             master_edition_infos.as_slice(),
-            &[],
+            &[&fuse_authority_seeds]
         )?;
 
         Ok(())
@@ -438,7 +433,7 @@ pub struct MintNFT<'info> {
     #[account(
         seeds=[
             FUSE_INFO_PREFIX.as_bytes(),
-            mint.key().as_ref(),
+            fuse_request.mint.key().as_ref(),
             filter_mint.key().as_ref(),
         ],
         bump=fuse_request.bump
@@ -450,7 +445,7 @@ pub struct MintNFT<'info> {
     )]
     filter_settings: Account<'info, FilterSettings>,
     /// CHECK: not sure, should just be an account info to replicate along
-    #[account(address = filter_settings.treasury_mint)]
+    #[account(address = filter_settings.crank_authority)]
     fuse_creator: UncheckedAccount<'info>,
     payer: Signer<'info>,
     /// CHECK: TODO(ngundotra) verify that this mint is correct
