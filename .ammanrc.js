@@ -11,7 +11,8 @@ const programIds = {
   metaplex: 'p1exdMJcjVao65QdewkaZRUnU6VPSXhus9n2GzWfh98',
   fixedPriceSaleToken: 'SaLeTjyUa5wXHnGuewUSyJ5JWZaHwz3TxqUntCE9czo',
   candyMachine: 'cndy3Z4yapfJBmL3ShUp5exZKqR3z33thTzeNMm2gRZ',
-  tokenFuser: 'fuseis4soWTGiwuDUTKXQZk3xZFRjGB8cPyuDERzd98'
+  tokenFuser: 'fuseis4soWTGiwuDUTKXQZk3xZFRjGB8cPyuDERzd98',
+  tokenEntangler: "qntmGodpGkrM42mN68VCZHXnKqDCT8rdY23wFcXCLPd",
 };
 
 function localDeployPath(programName) {
@@ -22,6 +23,7 @@ const programs = {
   vault: { programId: programIds.vault, deployPath: localDeployPath('mpl_token_vault') },
   auction: { programId: programIds.auction, deployPath: localDeployPath('mpl_auction') },
   metaplex: { programId: programIds.metaplex, deployPath: localDeployPath('mpl_metaplex') },
+  tokenEntangler: { programId: programIds.tokenEntangler, deployPath: localDeployPath('mpl_token_entangler') },
   tokenFuser: { programId: programIds.tokenFuser, deployPath: localDeployPath('mpl_token_fuser') },
   fixedPriceSaleToken: {
     programId: programIds.fixedPriceSaleToken,

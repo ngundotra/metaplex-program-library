@@ -8,6 +8,7 @@ const validator = {
   jsonRpcUrl: LOCALHOST,
   programs: [
       base.programs.metadata, 
+      base.programs.tokenEntangler, 
       base.programs.tokenFuser
     ],
 };

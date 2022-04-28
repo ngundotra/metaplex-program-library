@@ -23,9 +23,9 @@ import { BN } from "bn.js";
 import { mintNFT } from '../mpl/commands/mint-nft';
 import test from 'tape';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT, TOKEN_METADATA_PROGRAM_ID, A } from "../mpl/helpers/constants";
+import { TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT, TOKEN_METADATA_PROGRAM_ID, A, TOKEN_ENTANGLEMENT_PROGRAM_ID } from "../mpl/helpers/constants";
 import { createAssociatedTokenAccountInstruction, } from "../mpl/helpers/instructions";
-import { getMasterEdition, getMetadata, getTokenWallet } from "../mpl/helpers/accounts";
+import { getAtaForMint, getMasterEdition, getMetadata, getTokenEntanglement, getTokenEntanglementEscrows, getTokenWallet } from "../mpl/helpers/accounts";
 
 const NFT_URL = "https://arweave.net/lzY_4nfg9cWziM2vDd_SXTzdHDAMguNnNO1hHDRQwZM";
 const FILTER_URL = "https://arweave.net/v3qUWmuUQN8S6aMAeTeoKw14rp6YNoqg6lDDGB7Gfv8";
@@ -313,4 +313,67 @@ test("fuser", async (t) => {
         { commitment: "confirmed", skipPreflight: true }
     );
     console.log(`Minted new filtered NFT!!! ${resultTxid} \n`);
+
+    const [entangledPair, epBump] = await getTokenEntanglement(mintResult.mint, resultMint);
+    const [reverseEntangledPair, reverseEpBump] = await getTokenEntanglement(resultMint, mintResult.mint);
+
+    const [tokenAEscrow, _aBump, tokenBEscrow, _bBump] =
+        await getTokenEntanglementEscrows(mintResult.mint, resultMint);
+
+    const transferAuthorityKeypair = Keypair.generate();
+    const entangleTx = new Transaction()
+        .add(createApproveInstruction(
+            resultAta,
+            transferAuthorityKeypair.publicKey,
+            payer.publicKey,
+            1
+        ))
+        .add(fuserProgram.instruction.entangleBaseAndFused(
+            epBump,
+            reverseEpBump,
+            _aBump,
+            _bBump,
+            {
+                accounts: {
+                    filterSettings: filterSettingsKey,
+                    filterMint: filterResult.mint,
+                    fuseRequest,
+                    payer: payer.publicKey,
+                    treasuryMint: treasuryMint,
+                    transferAuthority: transferAuthorityKeypair.publicKey,
+                    authority: fuseRequest,
+                    mintOriginal: mintResult.mint,
+                    metadataOriginal: mintResult.metadataAccount,
+                    editionOriginal: await getMasterEdition(mintResult.mint),
+                    mintFiltered: resultMint,
+                    metadataFiltered: resultMetadataAccount,
+                    editionFiltered: resultMasterEdition,
+                    tokenB: resultAta, 
+                    tokenAEscrow,
+                    tokenBEscrow,
+                    entangledPair,
+                    reverseEntangledPair,
+                    entanglerProgram: TOKEN_ENTANGLEMENT_PROGRAM_ID,
+                    tokenProgram: TOKEN_PROGRAM_ID,
+                    systemProgram: SystemProgram.programId,
+                    rent: SYSVAR_RENT_PUBKEY
+                },
+                signers: [payer, transferAuthorityKeypair]
+            }
+        ))
+        .add(createRevokeInstruction(
+            resultAta,
+            payer.publicKey,
+        ));
+
+    console.log("Sending entangle tx...\n")
+    const entangleTxid = await sendAndConfirmTransaction(
+        connection,
+        entangleTx,
+        [payer, transferAuthorityKeypair],
+        { commitment: "confirmed", skipPreflight: true }
+    );
+
+    console.log(`Succesfully entangled pair: ${entangledPair.toString()}!`);
+    console.log(`Tx id: ${entangleTxid}\n`);
 });

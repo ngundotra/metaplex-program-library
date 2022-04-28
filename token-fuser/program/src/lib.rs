@@ -6,7 +6,7 @@ use {
         solana_program::{
             program::{invoke, invoke_signed},
             program_option::COption,
-            system_instruction
+            hash::hashv
         },
         //solana_program::entrypoint::ProgramResult,
         AnchorDeserialize, AnchorSerialize,
@@ -33,6 +33,7 @@ use {
         },
         // utils::{assert_derivation, create_or_allocate_account_raw},
     },
+    mpl_token_entangler,
     crate::error::FuseError
 };
 
@@ -49,8 +50,6 @@ const FILTER_SETTINGS_SIZE: usize =
 + 8   // price
 + 1   // pays every time
 + 32; // crank authority
-
-use anchor_spl::token::SetAuthority;
 
 const FUSE_INFO_PREFIX: &str = "fuse_request"; 
 const FUSE_INFO_SIZE: usize = 
@@ -350,11 +349,84 @@ pub mod token_fuser {
 
     // inits the entangler... may require settings lol
     pub fn entangle_base_and_fused(
-        ctx: Context<EntangleComponents>
+        ctx: Context<EntangleComponents>,
+        entangled_pair_bump: u8,
+        reverse_entangled_pair_bump: u8,
+        token_a_escrow_bump: u8,
+        token_b_escrow_bump: u8,
     ) -> Result<()> {
+        let payer = ctx.accounts.payer.to_account_info();
+        let fuse_request = &ctx.accounts.fuse_request.to_account_info();
+        let treasury_mint = ctx.accounts.treasury_mint.to_account_info();
+        msg!("Welcome to the entangler...");
+
+        let entangled_pair = ctx.accounts.entangled_pair.to_account_info();
+        let reverse_entangled_pair = ctx.accounts.reverse_entangled_pair.to_account_info();
+        let mint_a = ctx.accounts.mint_original.to_account_info();
+        let metadata_a = ctx.accounts.metadata_original.to_account_info();
+        let edition_a = ctx.accounts.edition_original.to_account_info();
+        let mint_b = ctx.accounts.mint_filtered.to_account_info();
+        let metadata_b = ctx.accounts.metadata_filtered.to_account_info();
+        let edition_b = ctx.accounts.edition_filtered.to_account_info();
+        let token_b = ctx.accounts.token_b.to_account_info();
+        let token_a_escrow = ctx.accounts.token_a_escrow.to_account_info();
+        let token_b_escrow = ctx.accounts.token_b_escrow.to_account_info();
+        let system_program = ctx.accounts.system_program.to_account_info();
+        let rent = ctx.accounts.rent.to_account_info();
+        let token_program = ctx.accounts.token_program.to_account_info();
+        let transfer_authority = ctx.accounts.transfer_authority.to_account_info();
+
+        let _signer_bump = [ctx.accounts.fuse_request.bump];
+        let signer_seeds = [
+            FUSE_INFO_PREFIX.as_bytes(),
+            &ctx.accounts.fuse_request.mint.as_ref(),
+            &ctx.accounts.fuse_request.filter.as_ref(),
+            &_signer_bump
+        ];
+        let reference_to_seeds: &[&[&[u8]]] = &[&signer_seeds];
+        // let cpi_ctx = Box::new();
+
+        // let ix_disc: &[u8] = &hashv(&[]).to_bytes()[..8];
+        // msg!("ix discriminator: {:?}", &ix_disc);
+        msg!("cpi-ing now");
+        mpl_token_entangler::cpi::create_entangled_pair(
+        CpiContext::new_with_signer(
+                ctx.accounts.entangler_program.to_account_info(),
+                mpl_token_entangler::cpi::accounts::CreateEntangledPair {
+                    treasury_mint,
+                    transfer_authority, 
+                    authority: fuse_request.clone(),
+                    mint_a,
+                    mint_b,
+                    metadata_a, 
+                    metadata_b,
+                    edition_a,
+                    edition_b,
+                    entangled_pair,
+                    reverse_entangled_pair,
+                    token_b,
+                    token_a_escrow,
+                    token_b_escrow,
+                    payer,
+                    system_program,
+                    token_program,
+                    rent,
+                },
+                reference_to_seeds
+            ),
+            entangled_pair_bump,
+            reverse_entangled_pair_bump,
+            token_a_escrow_bump,
+            token_b_escrow_bump,
+            ctx.accounts.filter_settings.price, 
+            ctx.accounts.filter_settings.pays_every_time
+        )?;
+
         Ok(())
     }
 }
+
+// fn unbox<T>(boxed: Box<T>)
 
 #[derive(Accounts)]
 pub struct RequestFuse<'info> {
@@ -420,9 +492,6 @@ pub struct FulfillFuseRequest<'info> {
     claimer: Signer<'info>,
     #[account(mut)] 
     treasury_token_account: Box<Account<'info, TokenAccount>>,
-    // /// CHECK: Just sending them the lamports back for closing Quark
-    // #[account(mut)]
-    // requester: UncheckedAccount<'info>,
     token_program: Program<'info, Token>,
     system_program: Program<'info, System>
 }
@@ -486,12 +555,12 @@ pub struct EntangleComponents<'info> {
         ],
         bump=fuse_request.bump
     )]
-    fuse_request: Account<'info, FuseRequest>,
+    fuse_request: Box<Account<'info, FuseRequest>>,
     #[account(
         seeds=[&FILTER_PREFIX.as_bytes(), filter_mint.key().as_ref()],
         bump=filter_settings.bump
     )]
-    filter_settings: Account<'info, FilterSettings>,
+    filter_settings: Box<Account<'info, FilterSettings>>,
     #[account(mut)]
     payer: Signer<'info>,
     /// --- all of this used just to create the EP
@@ -500,12 +569,14 @@ pub struct EntangleComponents<'info> {
     transfer_authority: Signer<'info>,
     /// CHECK: Verified through CPI
     authority: UncheckedAccount<'info>,
-    mint_original: Box<Account<'info, Mint>>,
+    /// CHECK: Verified through CPI
+    mint_original: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
     metadata_original: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
     edition_original: UncheckedAccount<'info>,
-    mint_filtered: Box<Account<'info, Mint>>,
+    /// CHECK: Verified through CPI
+    mint_filtered: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
     metadata_filtered: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
@@ -513,15 +584,23 @@ pub struct EntangleComponents<'info> {
     #[account(mut)]
     token_b: Box<Account<'info, TokenAccount>>,
     /// CHECK: Verified through CPI
+    #[account(mut)]
     token_a_escrow: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
+    #[account(mut)]
     token_b_escrow: UncheckedAccount<'info>,
     /// CHECK: Verified through CPI
+    #[account(mut)]
     entangled_pair: UncheckedAccount<'info>,
     /// CHECK: checked via CPI
+    #[account(mut)]
     reverse_entangled_pair: UncheckedAccount<'info>,
-    token_program: Program<'info, Token>,
-    system_program: Program<'info, System>,
+    /// CHECK: add an address check here
+    entangler_program: UncheckedAccount<'info>,
+    /// CHECK: add an address check here
+    token_program: UncheckedAccount<'info>,
+    /// CHECK: add an address check here
+    system_program: UncheckedAccount<'info>,
     rent: Sysvar<'info, Rent>,
 }
 
