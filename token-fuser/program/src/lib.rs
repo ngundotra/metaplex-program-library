@@ -546,18 +546,21 @@ pub struct MintNFT<'info> {
 /// and donate one I think.. not entirely sure.. lol.
 #[derive(Accounts)]
 pub struct EntangleComponents<'info> {
-    filter_mint: Account<'info, Mint>,
+    // filter_mint: Account<'info, Mint>,
     #[account(
         seeds=[
             &FUSE_INFO_PREFIX.as_bytes(),
-            mint_original.key().as_ref(),
-            filter_mint.key().as_ref(),
+            // mint_original.key().as_ref(),
+            // filter_mint.key().as_ref(),
+            fuse_request.mint.as_ref(),
+            fuse_request.filter.as_ref(),
         ],
         bump=fuse_request.bump
     )]
     fuse_request: Box<Account<'info, FuseRequest>>,
     #[account(
-        seeds=[&FILTER_PREFIX.as_bytes(), filter_mint.key().as_ref()],
+        // seeds=[&FILTER_PREFIX.as_bytes(), filter_mint.key().as_ref()],
+        seeds=[&FILTER_PREFIX.as_bytes(), filter_settings.filter_mint.as_ref()],
         bump=filter_settings.bump
     )]
     filter_settings: Box<Account<'info, FilterSettings>>,
