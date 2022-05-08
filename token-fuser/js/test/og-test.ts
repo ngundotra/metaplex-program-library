@@ -103,6 +103,9 @@ test("fuser", async (t) => {
     const treasury = Keypair.generate();
     const treasuryMint = NATIVE_MINT;
     const crankAuthority = Keypair.generate();
+    const listener = fuserProgram.addEventListener("FuseRequestEvent", (event, slot) => {
+        console.log("Found data!!!", event, slot);
+    });
     const txId = await fuserProgram.rpc.createFilterSettings(
         _bump,
         new BN(0),
@@ -459,4 +462,6 @@ test("fuser", async (t) => {
     console.log(`Successfully entangled pair: ${entangledPair.toString()}`);
     console.log(`or reverse entangled pair: ${reverseEntangledPair.toString()}\n`);
     console.log(`Tx id: ${entangleTxid}\n`);
+
+    await fuserProgram.removeEventListener(listener);
 });

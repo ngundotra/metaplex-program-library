@@ -1,42 +1,38 @@
-pub mod error;
-
 use {
     anchor_lang::{
         prelude::*,
         solana_program::{
             program::{invoke, invoke_signed},
             program_option::COption,
-            hash::hashv
         },
-        //solana_program::entrypoint::ProgramResult,
         AnchorDeserialize, AnchorSerialize,
     },
     spl_token::instruction::AuthorityType,
     anchor_spl::{
         associated_token::AssociatedToken,
         token::{
-            // self, Transfer, 
             Token, TokenAccount, Mint
         },
     },
     mpl_token_metadata::{
         instruction::{
-            // approve_collection_authority, 
             create_master_edition_v3, create_metadata_accounts_v2,
-            // revoke_collection_authority
         },
         state::{
             Metadata, 
             Creator
-            // MAX_CREATOR_LEN, MAX_CREATOR_LIMIT, MAX_NAME_LENGTH, MAX_SYMBOL_LENGTH,
-            // MAX_URI_LENGTH,
         },
-        // utils::{assert_derivation, create_or_allocate_account_raw},
     },
     mpl_token_entangler,
-    crate::error::FuseError
 };
 
+pub mod event;
+pub mod error;
+
+use {
+    crate::error::FuseError,
+    crate::event::FuseRequestEvent
+};
 
 anchor_lang::declare_id!("fuseis4soWTGiwuDUTKXQZk3xZFRjGB8cPyuDERzd98");
 
@@ -191,6 +187,13 @@ pub mod token_fuser {
             &[&signer_seeds]
         )?;
         msg!("Setup a bounty for the NFT");
+
+        emit!(FuseRequestEvent::init(
+            &ctx.accounts.filter_mint.key(),
+            &ctx.accounts.mint.key(),
+            &ctx.accounts.filter_settings.crank_authority,
+            bounty_amount,
+        ));
 
         Ok(())
     }
@@ -384,10 +387,7 @@ pub mod token_fuser {
             &_signer_bump
         ];
         let reference_to_seeds: &[&[&[u8]]] = &[&signer_seeds];
-        // let cpi_ctx = Box::new();
 
-        // let ix_disc: &[u8] = &hashv(&[]).to_bytes()[..8];
-        // msg!("ix discriminator: {:?}", &ix_disc);
         msg!("cpi-ing now");
         mpl_token_entangler::cpi::create_entangled_pair(
         CpiContext::new_with_signer(
