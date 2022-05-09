@@ -1152,10 +1152,10 @@ __metadata:
   dependencies:
     "@metaplex-foundation/beet": ^0.1.0
     "@metaplex-foundation/beet-solana": ^0.1.1
-    "@metaplex-foundation/mpl-token-metadata": 1.2.5
+    "@metaplex-foundation/mpl-token-metadata": "workspace:^"
     "@metaplex-foundation/solita": ^0.2.0
     "@project-serum/anchor": 0.17.0
-    "@solana/spl-token": 0.2.0
+    "@solana/spl-token": ^0.2.0
     "@solana/web3.js": ^1.35.1
     "@types/tape": ^4.13.2
     cross-fetch: ^3.1.5
@@ -1167,17 +1167,6 @@ __metadata:
     typescript: ^4.6.2
   languageName: unknown
   linkType: soft
-
-"@metaplex-foundation/mpl-token-metadata@npm:1.2.5":
-  version: 1.2.5
-  resolution: "@metaplex-foundation/mpl-token-metadata@npm:1.2.5"
-  dependencies:
-    "@metaplex-foundation/mpl-core": ^0.0.2
-    "@solana/spl-token": ^0.1.8
-    "@solana/web3.js": ^1.31.0
-  checksum: 89037642dfbb2ee465e6976dd0430188eee77db6f6266e70f037abc0d8672e12f8aca47fc78ce13c20bd2832ea126c88aff599915333ed0c96e6e88e0baa9db4
-  languageName: node
-  linkType: hard
 
 "@metaplex-foundation/mpl-token-metadata@npm:2.0.0":
   version: 2.0.0
@@ -1206,7 +1195,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@metaplex-foundation/mpl-token-metadata@workspace:token-metadata/js":
+"@metaplex-foundation/mpl-token-metadata@workspace:^, @metaplex-foundation/mpl-token-metadata@workspace:token-metadata/js":
   version: 0.0.0-use.local
   resolution: "@metaplex-foundation/mpl-token-metadata@workspace:token-metadata/js"
   dependencies:
@@ -1668,18 +1657,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@solana/spl-token@npm:0.2.0, @solana/spl-token@npm:^0.2.0":
-  version: 0.2.0
-  resolution: "@solana/spl-token@npm:0.2.0"
-  dependencies:
-    "@solana/buffer-layout": ^4.0.0
-    "@solana/buffer-layout-utils": ^0.2.0
-    "@solana/web3.js": ^1.32.0
-    start-server-and-test: ^1.14.0
-  checksum: c07f32428985ae67f97ed95d31d9e5c6d9317d26fa81b5df6c6f664152c48c9ad08af32a20d8c6667c636bfc22950a261c5cf57457820cba16c488640169b2f6
-  languageName: node
-  linkType: hard
-
 "@solana/spl-token@npm:^0.1.8":
   version: 0.1.8
   resolution: "@solana/spl-token@npm:0.1.8"
@@ -1691,6 +1668,18 @@ __metadata:
     buffer-layout: ^1.2.0
     dotenv: 10.0.0
   checksum: be4971c4af9c56fd30353356d8ca404b4460eb37806499ab1257e7d77afa56f89149cfe03c41a0f8908f50e9c421c5b805502857455281e8d3088a2eae1c3297
+  languageName: node
+  linkType: hard
+
+"@solana/spl-token@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@solana/spl-token@npm:0.2.0"
+  dependencies:
+    "@solana/buffer-layout": ^4.0.0
+    "@solana/buffer-layout-utils": ^0.2.0
+    "@solana/web3.js": ^1.32.0
+    start-server-and-test: ^1.14.0
+  checksum: c07f32428985ae67f97ed95d31d9e5c6d9317d26fa81b5df6c6f664152c48c9ad08af32a20d8c6667c636bfc22950a261c5cf57457820cba16c488640169b2f6
   languageName: node
   linkType: hard
 

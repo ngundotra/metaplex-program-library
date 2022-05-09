@@ -18,7 +18,7 @@ import {
     MintLayout,
     createInitializeMintInstruction,
     createMintToInstruction
-} from '@solana/spl-token';
+} from '@solana/spl-token/src';
 import { BN } from "bn.js";
 import { mintNFT } from '../mpl/commands/mint-nft';
 import test from 'tape';

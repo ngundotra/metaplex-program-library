@@ -15,7 +15,7 @@ import {
   createTransferInstruction,
   createCloseAccountInstruction,
   TOKEN_PROGRAM_ID,
-} from '@solana/spl-token';
+} from '@solana/spl-token/src';
 import {
   Keypair,
   Connection,
@@ -33,7 +33,7 @@ import {
   CreateMetadataV2,
   CreateMasterEditionV3,
   UpdateMetadataV2,
-} from '@metaplex-foundation/mpl-token-metadata';
+} from '@metaplex-foundation/mpl-token-metadata/dist/deprecated';
 
 export const createMetadata = async (
   metadataLink: string,

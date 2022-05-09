@@ -7,7 +7,7 @@ import {
 } from '@solana/web3.js';
 import fs from 'fs';
 import { BN, Program, web3 } from '@project-serum/anchor';
-import { TOKEN_PROGRAM_ID, getMint } from '@solana/spl-token';
+import { TOKEN_PROGRAM_ID, getMint } from '@solana/spl-token/src';
 import { StorageType } from './storage-type';
 
 import { getAtaForMint } from './accounts';
@@ -15,9 +15,8 @@ import { CLUSTERS, DEFAULT_CLUSTER } from './constants';
 import {
   Uses,
   UseMethod,
-  Metadata,
-  MetadataKey,
 } from '@metaplex-foundation/mpl-token-metadata';
+import { MetadataKey, Metadata } from '@metaplex-foundation/mpl-token-metadata/dist/deprecated';
 
 /*
 export async function getCandyMachineV2Config(
@@ -396,7 +395,7 @@ export function parseUses(useMethod: string, total: number): Uses | null {
     if (!realUseMethod) {
       throw new Error(`Invalid use method: ${useMethod}`);
     }
-    return new Uses({ useMethod: realUseMethod, total, remaining: total });
+    return { useMethod: realUseMethod, total, remaining: total };
   }
   return null;
 }
@@ -425,15 +424,15 @@ export async function parseCollectionMintPubkey(
       connection,
       collectionMintPubkey,
     ).catch();
-    if (metadata.data.updateAuthority !== walletKeypair.publicKey.toString()) {
+    if (metadata.data!.updateAuthority !== walletKeypair.publicKey.toString()) {
       throw new Error(
         'Invalid collection mint option. Metadata update authority does not match provided wallet keypair',
       );
     }
     const edition = await Metadata.getEdition(connection, collectionMintPubkey);
     if (
-      edition.data.key !== MetadataKey.MasterEditionV1 &&
-      edition.data.key !== MetadataKey.MasterEditionV2
+      edition.data!.key !== MetadataKey.MasterEditionV1 &&
+      edition.data!.key !== MetadataKey.MasterEditionV2
     ) {
       throw new Error(
         'Invalid collection mint. Provided collection mint does not have a master edition associated with it.',

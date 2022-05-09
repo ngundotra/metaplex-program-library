@@ -28,7 +28,7 @@ import fs from 'fs';
 import { createCandyMachineV2Account } from './instructions';
 import { web3 } from '@project-serum/anchor';
 import log from 'loglevel';
-import { AccountLayout, RawAccount } from '@solana/spl-token';
+import { AccountLayout, RawAccount } from '@solana/spl-token/src';
 import { getCluster } from './various';
 export type AccountAndPubkey = {
   pubkey: string;
