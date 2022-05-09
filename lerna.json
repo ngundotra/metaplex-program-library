@@ -5,6 +5,7 @@
     "auction/js",
     "token-vault/js",
     "token-metadata/js",
+    "token-fuser/js",
     "metaplex/js",
     "auction-house/js",
     "fixed-price-sale/js"

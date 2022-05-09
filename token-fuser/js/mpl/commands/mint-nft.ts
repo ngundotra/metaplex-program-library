@@ -15,7 +15,7 @@ import {
   createTransferInstruction,
   createCloseAccountInstruction,
   TOKEN_PROGRAM_ID,
-} from '@solana/spl-token/src';
+} from '@solana/spl-token';
 import {
   Keypair,
   Connection,
