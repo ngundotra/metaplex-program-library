@@ -14,17 +14,7 @@
     "fix": "lerna run --parallel fix"
   },
   "workspaces": [
-    "core/js",
-    "token-vault/js",
-    "token-metadata/js",
-    "token-entangler/js",
-    "token-fuser/js",
-    "auction/js",
-    "metaplex/js",
-    "auction-house/js",
-    "gumdrop/js",
-    "candy-machine/js",
-    "fixed-price-sale/js"
+    "token-fuser/js"
   ],
   "repository": "git@github.com:metaplex-foundation/metaplex-program-library.git",
   "author": "Metaplex Maintainers <contact@metaplex.com>",

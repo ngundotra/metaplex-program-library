@@ -7,7 +7,7 @@ import {
 } from '@solana/web3.js';
 import fs from 'fs';
 import { BN, Program, web3 } from '@project-serum/anchor';
-import { TOKEN_PROGRAM_ID, getMint } from '@solana/spl-token/src';
+import { TOKEN_PROGRAM_ID, Token, } from '@solana/spl-token';
 import { StorageType } from './storage-type';
 
 import { getAtaForMint } from './accounts';
@@ -16,7 +16,7 @@ import {
   Uses,
   UseMethod,
 } from '@metaplex-foundation/mpl-token-metadata';
-import { MetadataKey, Metadata } from '@metaplex-foundation/mpl-token-metadata/dist/deprecated';
+import { MetadataKey, Metadata } from '@metaplex-foundation/mpl-token-metadata';
 
 /*
 export async function getCandyMachineV2Config(
@@ -367,15 +367,17 @@ const getMultipleAccountsCore = async (
 export const getPriceWithMantissa = async (
   price: number,
   mint: web3.PublicKey,
-  walletKeyPair: any,
+  walletKeyPair: web3.Keypair,
   anchorProgram: Program,
 ): Promise<number> => {
-  const mintInfo = await getMint(
+  const mintInfo = new Token(
     anchorProgram.provider.connection,
     new web3.PublicKey(mint),
+    TOKEN_PROGRAM_ID,
+    walletKeyPair
   );
 
-  const mantissa = 10 ** mintInfo.decimals;
+  const mantissa = 10 ** (await mintInfo.getMintInfo()).decimals;
 
   return Math.ceil(price * mantissa);
 };
@@ -414,10 +416,13 @@ export async function parseCollectionMintPubkey(
         'Invalid Pubkey option. Please enter it as a base58 mint id',
       );
     }
-    const mintInfo = await getMint(
+    const token = new Token(
       connection,
       collectionMintPubkey,
+      TOKEN_PROGRAM_ID,
+      walletKeypair,
     );
+    await token.getMintInfo();
   }
   if (collectionMintPubkey) {
     const metadata = await Metadata.findByMint(

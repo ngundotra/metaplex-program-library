@@ -9,23 +9,36 @@ import {
     Transaction,
     sendAndConfirmTransaction
 } from '@solana/web3.js';
-import { airdrop } from '@metaplex-foundation/amman';
+// import { airdrop } from '@metaplex-foundation/amman';
 import { TokenFuser } from '../types/token_fuser';
 import NodeWallet from '@project-serum/anchor/dist/cjs/nodewallet';
 import {
     NATIVE_MINT, ASSOCIATED_TOKEN_PROGRAM_ID,
-    createSyncNativeInstruction, createApproveInstruction, createRevokeInstruction,
     MintLayout,
-    createInitializeMintInstruction,
-    createMintToInstruction
+    Token,
 } from '@solana/spl-token';
-import { BN } from "bn.js";
-import { mintNFT } from '../mpl/commands/mint-nft';
+import BN from "bn.js";
+import {
+    actions
+} from '@metaplex/js';
+const { mintNFT }  = actions;
+
 import test from 'tape';
 import { writeFileSync, readFileSync, existsSync } from 'fs';
-import { TOKEN_PROGRAM_ID, WRAPPED_SOL_MINT, TOKEN_METADATA_PROGRAM_ID, A, TOKEN_ENTANGLEMENT_PROGRAM_ID } from "../mpl/helpers/constants";
-import { createAssociatedTokenAccountInstruction, } from "../mpl/helpers/instructions";
-import { getAtaForMint, getMasterEdition, getMetadata, getTokenEntanglement, getTokenEntanglementEscrows, getTokenWallet } from "../mpl/helpers/accounts";
+import { 
+    TOKEN_PROGRAM_ID, 
+    WRAPPED_SOL_MINT, 
+    TOKEN_METADATA_PROGRAM_ID, 
+    TOKEN_ENTANGLEMENT_PROGRAM_ID 
+} from "../mpl/helpers/constants";
+import { 
+    getAtaForMint, 
+    getMasterEdition, 
+    getMetadata, 
+    getTokenEntanglement, 
+    getTokenEntanglementEscrows, 
+    getTokenWallet 
+} from "../mpl/helpers/accounts";
 
 const NFT_URL = "https://arweave.net/lzY_4nfg9cWziM2vDd_SXTzdHDAMguNnNO1hHDRQwZM";
 const FILTER_URL = "https://arweave.net/v3qUWmuUQN8S6aMAeTeoKw14rp6YNoqg6lDDGB7Gfv8";
@@ -33,7 +46,8 @@ const FUSE_URI = "https://arweave.net/ma4iMrOewMI6pzz6cXW8Ix9f7pL5Vs7X3-fjZspsWy
 
 type NFTResult = {
     mint: PublicKey,
-    metadataAccount: PublicKey,
+    metadata: PublicKey,
+    edition: PublicKey,
 };
 type TestNFT = {
     mintResult: NFTResult,
@@ -42,36 +56,32 @@ type TestNFT = {
 async function loadTestNFTs(connection: Connection, payer: Keypair): Promise<TestNFT> {
     const fname = ".test-nfts.json";
 
-    if (!existsSync(fname)) {
-        const isMutable = false;
-        const mintResult = await mintNFT(connection, payer, NFT_URL, isMutable, undefined, 0, true);
-        if (!mintResult) { throw new Error("failed to create mint data") }
-        const filterResult = await mintNFT(connection, payer, FILTER_URL, isMutable, undefined, 0, true);
-        if (!filterResult) { throw new Error("failed to create filter data") }
+    const wallet = new NodeWallet(payer);
+    // if (!existsSync(fname)) {
+    console.log("making first mint");
+    const mintResult = await mintNFT({connection, wallet, uri: NFT_URL, maxSupply: 0 });
+    if (!mintResult) { throw new Error("failed to create mint data") }
+    console.log("making second mint");
+    const filterResult = await mintNFT({connection, wallet, uri: FILTER_URL, maxSupply: 0});
+    if (!filterResult) { throw new Error("failed to create filter data") }
 
-        const toSave = JSON.stringify({ mintResult, filterResult });
-        writeFileSync(fname, toSave);
-    }
+    //     const toSave = JSON.stringify({ mintResult, filterResult });
+    //     writeFileSync(fname, toSave);
+    // }
 
-    const testResults = JSON.parse(readFileSync(fname).toString());
-    const parsedResults = {
-        mintResult: {
-            mint: new PublicKey(testResults.mintResult.mint),
-            metadataAccount: new PublicKey(testResults.mintResult.metadataAccount),
-        },
-        filterResult: {
-            mint: new PublicKey(testResults.filterResult.mint),
-            metadataAccount: new PublicKey(testResults.filterResult.metadataAccount),
-        }
+    // const testResults = JSON.parse(readFileSync(fname).toString());
+    return {
+        mintResult,
+        filterResult,
     }
-    return parsedResults;
 }
 
 const setupPrereqs = async () => {
     const connection = new Connection("http://localhost:8899", { commitment: "confirmed" });
     const keypairPath = `${process.env.HOME}/.config/solana/id.json`;
     const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(keypairPath).toString())));
-    await airdrop(connection, payer.publicKey, 5);
+    const sig = await connection.requestAirdrop(payer.publicKey, 5*1e9);
+    await connection.confirmTransaction(sig);
 
     const { mintResult, filterResult } = await loadTestNFTs(connection, payer);
     const wallet = new NodeWallet(payer);
@@ -102,6 +112,8 @@ test("fuser", async (t) => {
     const [filterSettingsKey, _bump] = await PublicKey.findProgramAddress(filterSettingSeeds, fuserProgram.programId)
     const treasury = Keypair.generate();
     const treasuryMint = NATIVE_MINT;
+    // const treasuryMint = new PublicKey("So11111111111111111111111111111111111111112");
+    // console.log(NATIVE_MINT.toString(), "\n\n\n\n");
     const crankAuthority = Keypair.generate();
     const listener = fuserProgram.addEventListener("FuseRequestEvent", (event, slot) => {
         console.log("Found data!!!", event, slot);
@@ -134,47 +146,65 @@ test("fuser", async (t) => {
     const [fuseRequest, fuseRequestBump] = await PublicKey.findProgramAddress(fuseRequestSeeds, fuserProgram.programId);
 
     const bountyAmount = 1e6;
-    const payerTokenAccount = await getTokenWallet(payer.publicKey, treasuryMint);
-    const ataPayerIx = createAssociatedTokenAccountInstruction(
-        payerTokenAccount,
-        payer.publicKey,
-        payer.publicKey,
-        treasuryMint
-    );
-    let tx = new Transaction().add(ataPayerIx);
-    let ataTxid = await sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
-    console.log("payer ata creation confirmed:", ataTxid);
+    // const payerTokenAccount = await getTokenWallet(payer.publicKey, treasuryMint);
+    // const ataPayerIx = Token.createAssociatedTokenAccountInstruction(
+    //     ASSOCIATED_TOKEN_PROGRAM_ID,
+    //     TOKEN_PROGRAM_ID,
+    //     treasuryMint,
+    //     payerTokenAccount,
+    //     payer.publicKey,
+    //     payer.publicKey,
+    // );
+    // let tx = new Transaction().add(ataPayerIx);
+    // let ataTxid = await sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
+    // console.log("payer ata creation confirmed:", ataTxid);
 
-    const fillPayerATA = await sendAndConfirmTransaction(
+    // const fillPayerATA = await sendAndConfirmTransaction(
+    //     connection,
+    //     new Transaction().add(SystemProgram.transfer({
+    //         fromPubkey: payer.publicKey,
+    //         toPubkey: payerTokenAccount,
+    //         lamports: bountyAmount,
+    //         programId: SystemProgram.programId,
+    //     })),
+        // .add(
+        //     createSyncNativeInstruction(payerTokenAccount, TOKEN_PROGRAM_ID)
+        // ),
+    //     [payer],
+    //     { commitment: "confirmed", skipPreflight: true }
+    // );
+    // console.log("Filled payer ata", fillPayerATA);
+
+    const payerTokenAccount = await Token.createWrappedNativeAccount(
         connection,
-        new Transaction().add(SystemProgram.transfer({
-            fromPubkey: payer.publicKey,
-            toPubkey: payerTokenAccount,
-            lamports: bountyAmount,
-            programId: SystemProgram.programId,
-        })).add(createSyncNativeInstruction(payerTokenAccount, TOKEN_PROGRAM_ID)),
-        [payer],
-        { commitment: "confirmed", skipPreflight: true }
-    );
-    console.log("Filled payer ata", fillPayerATA);
+        TOKEN_PROGRAM_ID,
+        payer.publicKey,
+        payer,
+        bountyAmount
+    )
+    // Token.createWrappedNativeAccount()
 
     const fuseRequestEscrow = await getTokenWallet(fuseRequest, treasuryMint);
-    const ataEscrowIx = createAssociatedTokenAccountInstruction(
+    const ataEscrowIx = Token.createAssociatedTokenAccountInstruction(
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+        TOKEN_PROGRAM_ID,
+        treasuryMint,
         fuseRequestEscrow,
-        payer.publicKey,
         fuseRequest,
-        treasuryMint
+        payer.publicKey,
     );
-    tx = new Transaction().add(ataEscrowIx);
-    ataTxid = await sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
+    let tx = new Transaction().add(ataEscrowIx);
+    let ataTxid = await sendAndConfirmTransaction(connection, tx, [payer], { commitment: "confirmed" });
     console.log("escrow ata creation confirmed:", ataTxid);
 
     console.log("Creating fuse request...");
     const fuseRequestIxs = [
-        createApproveInstruction(
+        Token.createApproveInstruction(
+            TOKEN_PROGRAM_ID,
             payerTokenAccount,
             fuseRequest,
             payer.publicKey,
+            [],
             bountyAmount,
         ),
         fuserProgram.instruction.requestFuse(
@@ -198,9 +228,11 @@ test("fuser", async (t) => {
                 signers: [payer]
             }
         ),
-        createRevokeInstruction(
+        Token.createRevokeInstruction(
+            TOKEN_PROGRAM_ID,
             payerTokenAccount,
             payer.publicKey,
+            []
         )
     ];
 
@@ -212,23 +244,33 @@ test("fuser", async (t) => {
     const requestFuseTxId = await sendAndConfirmTransaction(connection, requestFuseTx, [payer], { commitment: "confirmed", skipPreflight: true })
     console.log("Sent fuse request tx with id:", requestFuseTxId);
 
-    console.log("Fulfilling fuse request...");
-    const treasuryTokenAccount = await getTokenWallet(treasury.publicKey, treasuryMint);
-    const ataTreasuryIx = createAssociatedTokenAccountInstruction(
-        treasuryTokenAccount,
-        payer.publicKey,
-        treasury.publicKey,
-        treasuryMint
-    );
-    tx = new Transaction().add(ataTreasuryIx);
-    ataTxid = await sendAndConfirmTransaction(
+    console.log("Creating treasury token account")
+    const treasuryTokenAccount = await Token.createWrappedNativeAccount(
         connection,
-        tx,
-        [payer],
-        { commitment: "confirmed", skipPreflight: true }
+        TOKEN_PROGRAM_ID,
+        treasury.publicKey,
+        payer,
+        0
     );
-    console.log("Successfully created treasury token account address:", ataTxid);
+    // const treasuryTokenAccount = await getTokenWallet(treasury.publicKey, treasuryMint);
+    // const ataTreasuryIx = Token.createAssociatedTokenAccountInstruction(
+    //     ASSOCIATED_TOKEN_PROGRAM_ID,
+    //     TOKEN_PROGRAM_ID,
+    //     treasuryMint,
+    //     treasuryTokenAccount,
+    //     payer.publicKey,
+    //     treasury.publicKey,
+    // );
+    // tx = new Transaction().add(ataTreasuryIx);
+    // ataTxid = await sendAndConfirmTransaction(
+    //     connection,
+    //     tx,
+    //     [payer],
+    //     { commitment: "confirmed", skipPreflight: true }
+    // );
+    // console.log("Successfully created treasury token account address:", ataTxid);
 
+    console.log("Fulfilling fuse request...");
     await fuserProgram.rpc.fulfillFuseRequest(
         FUSE_URI,
         "filtered",
@@ -270,22 +312,27 @@ test("fuser", async (t) => {
                 space: MintLayout.span,
                 programId: TOKEN_PROGRAM_ID,
             }))
-            .add(createInitializeMintInstruction(
+            .add(Token.createInitMintInstruction(
+                TOKEN_PROGRAM_ID,
                 resultMint,
                 0,
                 payer.publicKey,
                 null
             ))
-            .add(createAssociatedTokenAccountInstruction(
-                resultAta,
-                payer.publicKey,
-                payer.publicKey,
-                resultMint
-            ))
-            .add(createMintToInstruction(
+            .add(Token.createAssociatedTokenAccountInstruction(
+                ASSOCIATED_TOKEN_PROGRAM_ID,
+                TOKEN_PROGRAM_ID,
                 resultMint,
                 resultAta,
                 payer.publicKey,
+                payer.publicKey,
+            ))
+            .add(Token.createMintToInstruction(
+                TOKEN_PROGRAM_ID,
+                resultMint,
+                resultAta,
+                payer.publicKey,
+                [],
                 1,
             ))
             .add(fuserProgram.instruction.createFusedMetadata(
@@ -296,7 +343,7 @@ test("fuser", async (t) => {
                         filterSettings: filterSettingsKey,
                         fuseCreator: crankAuthority.publicKey,
                         payer: payer.publicKey,
-                        baseMetadata: mintResult.metadataAccount,
+                        baseMetadata: mintResult.metadata,
 
                         metadata: resultMetadataAccount,
                         mint: resultMint,
@@ -351,10 +398,12 @@ test("fuser", async (t) => {
     let entangleTxid = "";
     try {
         const entangleTx = new Transaction()
-            .add(createApproveInstruction(
+            .add(Token.createApproveInstruction(
+                TOKEN_PROGRAM_ID,
                 resultAta,
                 transferAuthorityKeypair.publicKey,
                 payer.publicKey,
+                [],
                 1
             ))
             .add(fuserProgram.instruction.entangleBaseAndFused(
@@ -372,7 +421,7 @@ test("fuser", async (t) => {
                         transferAuthority: transferAuthorityKeypair.publicKey,
                         authority: fuseRequest,
                         mintOriginal: mintResult.mint,
-                        metadataOriginal: mintResult.metadataAccount,
+                        metadataOriginal: mintResult.metadata,
                         editionOriginal: await getMasterEdition(mintResult.mint),
                         mintFiltered: resultMint,
                         metadataFiltered: resultMetadataAccount,
@@ -390,9 +439,11 @@ test("fuser", async (t) => {
                     signers: [payer, transferAuthorityKeypair]
                 }
             ))
-            .add(createRevokeInstruction(
+            .add(Token.createRevokeInstruction(
+                TOKEN_PROGRAM_ID,
                 resultAta,
                 payer.publicKey,
+                [],
             ));
 
         console.log("Sending entangle tx...\n")
@@ -407,10 +458,12 @@ test("fuser", async (t) => {
 
         const ata = await getTokenWallet(payer.publicKey, mintResult.mint);
         const entangleTx = new Transaction()
-            .add(createApproveInstruction(
+            .add(Token.createApproveInstruction(
+                TOKEN_PROGRAM_ID,
                 ata,
                 transferAuthorityKeypair.publicKey,
                 payer.publicKey,
+                [],
                 1
             ))
             .add(fuserProgram.instruction.entangleBaseAndFused(
@@ -430,8 +483,8 @@ test("fuser", async (t) => {
                         metadataOriginal: resultMetadataAccount,
                         editionOriginal: resultMasterEdition,
                         mintFiltered: mintResult.mint,
-                        metadataFiltered: mintResult.metadataAccount,
-                        editionFiltered: await getMasterEdition(mintResult.mint),
+                        metadataFiltered: mintResult.metadata,
+                        editionFiltered: mintResult.edition,
                         tokenB: ata,
                         tokenAEscrow: tokenBEscrow,
                         tokenBEscrow: tokenAEscrow,
@@ -445,9 +498,11 @@ test("fuser", async (t) => {
                     signers: [payer, transferAuthorityKeypair]
                 }
             ))
-            .add(createRevokeInstruction(
+            .add(Token.createRevokeInstruction(
+                TOKEN_PROGRAM_ID,
                 ata,
                 payer.publicKey,
+                [],
             ));
 
         console.log("Sending reverse entangle tx...\n")

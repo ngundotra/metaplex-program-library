@@ -33,7 +33,7 @@ import {
   CreateMetadataV2,
   CreateMasterEditionV3,
   UpdateMetadataV2,
-} from '@metaplex-foundation/mpl-token-metadata/dist/deprecated';
+} from '@metaplex-foundation/mpl-token-metadata/dist/mpl-token-metadata';
 
 export const createMetadata = async (
   metadataLink: string,

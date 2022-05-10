@@ -20,13 +20,7 @@
     "resolveJsonModule": true,
     "lib": ["dom", "es2019"],
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "@solana/spl-token": [
-        "../../node_modules/@solana/spl-token/src"
-      ]
-    }
   },
-  "include": ["./src", "test"],
+  "include": ["test"],
   "exclude": ["node_modules", "typings/browser", "typings/browser.d.ts"],
 }

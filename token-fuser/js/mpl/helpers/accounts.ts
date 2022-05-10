@@ -28,7 +28,7 @@ import fs from 'fs';
 import { createCandyMachineV2Account } from './instructions';
 import { web3 } from '@project-serum/anchor';
 import log from 'loglevel';
-import { AccountLayout, RawAccount } from '@solana/spl-token';
+import { AccountLayout } from '@solana/spl-token';
 import { getCluster } from './various';
 export type AccountAndPubkey = {
   pubkey: string;
@@ -37,7 +37,7 @@ export type AccountAndPubkey = {
 
 // TODO: expose in spl package
 export const deserializeAccount = (data: Buffer) => {
-  const accountInfo: RawAccount = AccountLayout.decode(data);
+  const accountInfo = AccountLayout.decode(data);
   return accountInfo;
   /*
   accountInfo.mint = new PublicKey(accountInfo.mint);
